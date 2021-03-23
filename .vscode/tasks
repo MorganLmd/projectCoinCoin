@@ -1,0 +1,39 @@
+# 1 "/home/morgan/Documents/m1iii-workspace/progObjetAvancee/projectCoinCoin/.vscode/tasks.json"
+# 1 "/home/morgan/Documents/m1iii-workspace/progObjetAvancee/projectCoinCoin//"
+# 1 "<built-in>"
+# 1 "<command-line>"
+# 31 "<command-line>"
+# 1 "/usr/include/stdc-predef.h" 1 3 4
+# 32 "<command-line>" 2
+# 1 "/home/morgan/Documents/m1iii-workspace/progObjetAvancee/projectCoinCoin/.vscode/tasks.json"
+{
+ "version": "2.0.0",
+ "tasks": [
+  {
+   "type": "cppbuild",
+   "label": "C/C++: cpp build active file",
+   "command": "/bin/cpp",
+   "args": [
+    "-g",
+    "-Wall",
+    "-Werror",
+    "-Ofast",
+    "-std=c++11",
+    "${file}",
+    "-o",
+    "${fileDirname}/${fileBasenameNoExtension}"
+   ],
+   "options": {
+    "cwd": "${workspaceFolder}"
+   },
+   "problemMatcher": [
+    "$gcc"
+   ],
+   "group": {
+    "kind": "build",
+    "isDefault": true
+   },
+   "detail": "compiler: /bin/cpp"
+  }
+ ]
+}
