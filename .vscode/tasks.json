@@ -10,6 +10,7 @@
 				"-Ofast",
 				"-Wall",
 				"-Werror",
+				"-lcrypto",
 				"-std=c++11",
 				"${file}",
 				"-o",
