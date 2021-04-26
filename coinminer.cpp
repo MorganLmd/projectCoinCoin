@@ -10,157 +10,285 @@
 #include <math.h>
 #include <openssl/sha.h>
 
-class ParameterParser {
-
+enum MinerEnum
+{
+    CoinCoinMinerEnum,
+    BenchmarkMinerEnum
 };
 
-class Token {
+class ParamParser
+{
+private:
+    const std::vector<std::string> argv;
+    const int argc;
 
-    public:
-        void setNonce(std::string nonce);
-        std::string getToken();
-        int tokenSize = 60;
-        Token(const std::string triOwn) {
-            this->triOwn = triOwn;
-            time = timestampToString(std::time(0));
+public:
+    ParamParser(std::vector<std::string> argv, int argc) : argv(argv), argc(argc) {}
+    void displayParameters();
+    MinerEnum isCommandValid();
+    bool isArgNumberOk() { return (argc == 2 || argc == 5); }
+};
+
+void ParamParser::displayParameters()
+{
+    for (std::string param : argv)
+    {
+        std::cout << param << std::endl;
+    }
+
+    std::cout << "count = " << argc << std::endl;
+}
+
+MinerEnum ParamParser::isCommandValid()
+{
+    if (argc == 2 && argv[1] == "-z")
+    {
+        return BenchmarkMinerEnum;
+    }
+    else if (argc == 5 && argv[1] == "-t" && argv[3] == "-m")
+    {
+        if (argv[2].size() == 3 && std::stoi(argv[4]) > 0 && std::stoi(argv[4]) < 12)
+        {
+            return CoinCoinMinerEnum;
         }
-        std::string nonce;
-        std::string triOwn;
-        const std::string proto = "CC1.0";
-        std::string time;
-        const std::string reserved = "0f0f0f";
-        const std::string timestampToString(const time_t &timestamp);
+        else
+        {
+            throw std::invalid_argument("invalid command");
+        }
+    }
+    else
+    {
+        throw std::invalid_argument("invalid command");
+    }
+}
+
+class Token
+{
+
+public:
+    void setNonce(std::string nonce);
+    std::string getToken();
+    const static int TOKEN_SIZE = 60;
+    Token(const std::string triOwn) : triOwn(triOwn) { time = timestampToString(std::time(0)); }
+
+private:
+    std::string nonce;
+    std::string triOwn;
+    std::string time;
+    const std::string proto = "CC1.0";
+    const std::string reserved = "0f0f0f";
+
+    const std::string timestampToString(const time_t &timestamp);
 };
 
-void Token::setNonce(std::string nonce) {
+void Token::setNonce(std::string nonce)
+{
     this->nonce = nonce;
 }
 
-std::string Token::getToken() {
+std::string Token::getToken()
+{
     return nonce + "-" + triOwn + "-" + proto + "-" + time + "-" + reserved;
 }
 
-const std::string Token::timestampToString(const time_t &timestamp) {
+const std::string Token::timestampToString(const time_t &timestamp)
+{
     std::stringstream stringstream;
     stringstream << timestamp;
-    return stringstream.str();;
+    return stringstream.str();
+    ;
 }
 
-class Miner {
+class Miner
+{
+public:
+    virtual void coinHash() = 0;
+    Miner() : strength(5) { token = new Token("XXX"); }
+    Miner(int strength, std::string triOwn) : strength(strength) { token = new Token(triOwn); }
 
-    public:
-        virtual std::string coinHash() = 0;
-
-    private:
-        Token token;
-        virtual void displayValidToken() = 0;
-        
+protected:
+    Token *token;
+    int strength;
+    inline char getRandomChar();
+    template <typename T>
+    inline T getRandomNonce();
+    inline std::string sha1();
+    inline bool isHashValid(std::string hash);
 };
 
-class CoinCoinMiner : public Miner {
-
-    public:
-        std::string coinHash() { return "";}
-
-    private:
-        int target;
-};
-
-class BenchmarkMiner : public Miner {
-
-};
-
-char getRandomChar() {
+char Miner::getRandomChar()
+{
     int number = rand() % 95;
     return number + 32;
 }
 
-std::string getRandomNonce() {
-    std::string randomNonce;
-    for (int i = 0 ; i < 32 ; i++) {
+template <typename T>
+T Miner::getRandomNonce()
+{
+    T randomNonce;
+    for (int i = 0; i < 32; i++)
+    {
         randomNonce += getRandomChar();
     }
 
     return randomNonce;
 }
 
-std::string sha1(Token *token) {
+std::string Miner::sha1()
+{
     unsigned char hash[SHA_DIGEST_LENGTH];
     SHA_CTX sha1;
     SHA1_Init(&sha1);
-    SHA1_Update(&sha1, token->getToken().c_str(), token->getToken().size());
+    SHA1_Update(&sha1, token->getToken().c_str(), Token::TOKEN_SIZE);
     SHA1_Final(hash, &sha1);
 
     std::stringstream stringStream;
-    for (int i = 0 ; i < SHA_DIGEST_LENGTH ; i++) {
-        stringStream << std::hex << std::setw(2) << std::setfill('0') << (int) hash[i];
+    for (int i = 0; i < SHA_DIGEST_LENGTH; i++)
+    {
+        stringStream << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
     }
 
     return stringStream.str();
 }
 
-bool isHashValid(std::string hash, int strength) {
-    for (int i = 0 ; i < strength ; i++) {
-        if (hash[i] != 'c') {
+bool Miner::isHashValid(std::string hash)
+{
+    for (int i = 0; i < strength; i++)
+    {
+        if (hash[i] != 'c')
+        {
             return false;
         }
     }
     return true;
 }
 
+class CoinCoinMiner : public Miner
+{
 
-void displayToken(Token *token) {
+public:
+    CoinCoinMiner(int strength, std::string triOwn) : Miner(strength, triOwn) {}
+    void coinHash();
+    int calculateHashValue(std::string hash);
+};
 
-    std::cout << token->nonce << " => size = " << token->nonce.size() << std::endl;
-    std::cout << token->triOwn << " => size = " << token->triOwn.size() << std::endl;
-    std::cout << token->proto << " => size = " << token->proto.size() << std::endl;
-    std::cout << token->time << " => size = " << token->time.size() << std::endl;
-    std::cout << token->reserved << " => size = " << token->reserved.size() << std::endl;
-    std::cout << token->getToken() << std::endl;
-    std::cout << "total size = " << token->getToken().size() << std::endl;
-    std::cout << std::endl;
+void CoinCoinMiner::coinHash()
+{
+    while (true)
+    {
+        token->setNonce(getRandomNonce<std::string>());
+        if (isHashValid(sha1()))
+        {
+            std::cout << token->getToken() << " => " << calculateHashValue(sha1()) << std::endl;
+        }
+    }
+    delete token;
 }
 
-
-int main(int argc, char const *argv[])
+int CoinCoinMiner::calculateHashValue(std::string hash)
 {
-    auto startTime = std::chrono::high_resolution_clock::now();
-
-    const std::vector<std::string> parameters(argv, argv + argc);
-
-    std::srand((unsigned) std::time(0));
-
-    //const auto processor_count = std::thread::hardware_concurrency();
-
-    Token *token = new Token("MLO");
-
-    //bool bug = false;
-
-    for (int i = 0 ; i < 1000000000 ; i++) {
-        token->setNonce(getRandomNonce());
-        //displayToken(token);
-        //std::cout << sha1Test("toto") << std::endl;
-        //std::cout << token->getToken() << " = " << sha1(token) << std::endl;
-        if (isHashValid(sha1(token), 6)) {
-            std::cout << token->getToken() << std::endl;
-
-            auto stopTime = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::seconds>(stopTime - startTime);
-            std::cout << "subcoin (6) = " << duration.count() << std::endl;
-            std::cout << "coin (7) = " << duration.count() * 16 << std::endl;
-            std::cout << "hexcoin (8) = " << ((duration.count() * pow(16, 2)) % 60) << "," <<  ((duration.count() * pow(16, 2)) % 60) << std::endl;
-            std::cout << "arkhenstone (9) = " << duration.count() * pow(16, 3) << std::endl;
-            std::cout << "blackstar (10) = " << duration.count() * pow(16, 4) << std::endl;
-            std::cout << "grand cross (11) = " << duration.count() * pow(16, 5) << std::endl;
-
+    int counter = 0;
+    for (char c : hash)
+    {
+        if (c == 'c')
+        {
+            counter++;
+        }
+        else
+        {
             break;
         }
     }
+    return counter;
+}
 
-    //std::cout << bug << std::endl;
+class BenchmarkMiner : public Miner
+{
+public:
+    void coinHash();
+    std::string displayReadableDuration(const long duration);
+};
 
+void BenchmarkMiner::coinHash()
+{
+    bool isRunning = true;
+    auto startTime = std::chrono::high_resolution_clock::now();
+    std::cout << "Starting benchmark..." << std::endl;
+    while (isRunning)
+    {
+        token->setNonce(getRandomNonce<std::string>());
+        if (isHashValid(sha1()))
+        {
+            std::cout << "miette (5) calculée => " << token->getToken() << " => " << sha1() << std::endl;
+            auto stopTime = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stopTime - startTime);
+            std::cout << "miette (5) => " << displayReadableDuration(duration.count()) << std::endl;
+            std::cout << "subcoin (6) => " << displayReadableDuration(duration.count() * 16) << std::endl;
+            std::cout << "coin (7) => " << displayReadableDuration(duration.count() * pow(16, 2)) << std::endl;
+            std::cout << "hexcoin (8) => " << displayReadableDuration(duration.count() * pow(16, 3)) << std::endl;
+            std::cout << "arkhenstone (9) => " << displayReadableDuration(duration.count() * pow(16, 4)) << std::endl;
+            std::cout << "blackstar (10) => " << displayReadableDuration(duration.count() * pow(16, 5)) << std::endl;
+            std::cout << "grand cross (11) => " << displayReadableDuration(duration.count() * pow(16, 6)) << std::endl;
 
+            isRunning = false;
+        }
+    }
+    delete token;
+}
+
+std::string BenchmarkMiner::displayReadableDuration(const long duration)
+{
+    auto days = duration / (24 * 60 * 60 * 1000);
+    auto rest = duration % (24 * 60 * 60 * 1000);
+    auto hours = rest / (60 * 60 * 1000);
+    rest = rest % (60 * 60 * 1000);
+    auto minutes = rest / (60 * 1000);
+    rest = rest % (60 * 1000);
+    auto seconds = rest / 1000;
+    auto milliseconds = rest % 1000;
+    std::stringstream time;
+    time << days << " days(s), " << hours << " hour(s), " << minutes << " minute(s), " << seconds << " second(s), " << milliseconds << " millisecond(s)";
+    return time.str();
+}
+
+int main(const int argc, char const *argv[])
+{
+    ParamParser parameterParser(std::vector<std::string>(argv, argv + argc), argc);
+    std::srand((unsigned)std::time(0));
+    //const auto processor_count = std::thread::hardware_concurrency();
+
+    Miner *miner;
+    try
+    {
+        MinerEnum mode = parameterParser.isCommandValid();
+        switch (mode)
+        {
+        case CoinCoinMinerEnum:
+            miner = new CoinCoinMiner(std::stoi(argv[4]), argv[2]);
+            break;
+        case BenchmarkMinerEnum:
+            miner = new BenchmarkMiner();
+            break;
+
+        default:
+            miner = nullptr;
+            throw std::invalid_argument("invalid command");
+            return 0;
+        }
+
+        if (miner != nullptr)
+        {
+            miner->coinHash();
+        }
+    }
+    catch (const std::invalid_argument &e)
+    {
+        std::cerr << e.what() << std::endl;
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "fatal error : " << e.what() << std::endl;
+    }
 
     return 0;
 }
-
