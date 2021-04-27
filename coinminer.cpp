@@ -1,4 +1,7 @@
 #include <iostream>
+#include <algorithm>
+#include <random>
+#include <functional>
 #include <cstdlib>
 #include <ctime>
 #include <sstream>
@@ -96,7 +99,6 @@ const std::string Token::timestampToString(const time_t &timestamp)
     std::stringstream stringstream;
     stringstream << timestamp;
     return stringstream.str();
-    ;
 }
 
 class Miner
@@ -109,28 +111,32 @@ public:
 protected:
     Token *token;
     int strength;
-    inline char getRandomChar();
+    std::vector<char> charset();
     template <typename T>
-    inline T getRandomNonce();
+    inline T getRandomNonce(std::function<char(void)> randomcharacter);
     inline std::string sha1();
-    inline bool isHashValid(std::string hash);
+    inline bool isHashValid(std::string &&hash);
 };
 
-char Miner::getRandomChar()
+std::vector<char> Miner::charset()
 {
-    int number = rand() % 95;
-    return number + 32;
+    return std::vector<char>({'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                              'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+                              'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+                              'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D',
+                              'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
+                              'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+                              'Y', 'Z', '!', '"', '#', '$', '%', '&', '\'', '(',
+                              ')', '*', '+', ',', '-', '.', '/', ':', ';', '<',
+                              '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`',
+                              '{', '|', '}', '~', ' '});
 }
 
 template <typename T>
-T Miner::getRandomNonce()
+T Miner::getRandomNonce(std::function<char(void)> randomcharacter)
 {
-    T randomNonce;
-    for (int i = 0; i < 32; i++)
-    {
-        randomNonce += getRandomChar();
-    }
-
+    T randomNonce(32, 0);
+    std::generate_n(randomNonce.begin(), 32, randomcharacter);
     return randomNonce;
 }
 
@@ -151,7 +157,7 @@ std::string Miner::sha1()
     return stringStream.str();
 }
 
-bool Miner::isHashValid(std::string hash)
+bool Miner::isHashValid(std::string &&hash)
 {
     for (int i = 0; i < strength; i++)
     {
@@ -165,27 +171,30 @@ bool Miner::isHashValid(std::string hash)
 
 class CoinCoinMiner : public Miner
 {
-
 public:
     CoinCoinMiner(int strength, std::string triOwn) : Miner(strength, triOwn) {}
     void coinHash();
-    int calculateHashValue(std::string hash);
+    int calculateHashValue(std::string &&hash);
 };
 
 void CoinCoinMiner::coinHash()
 {
+    const auto asciiCharset = charset();
+    std::default_random_engine randomGenerator(std::random_device{}());
+    std::uniform_int_distribution<> distribution(0, asciiCharset.size() - 1);
+    auto randomcharacter = [asciiCharset, &distribution, &randomGenerator]() { return asciiCharset[distribution(randomGenerator)]; };
+
     while (true)
     {
-        token->setNonce(getRandomNonce<std::string>());
+        token->setNonce(getRandomNonce<std::string>(randomcharacter));
         if (isHashValid(sha1()))
         {
             std::cout << token->getToken() << " => " << calculateHashValue(sha1()) << std::endl;
         }
     }
-    delete token;
 }
 
-int CoinCoinMiner::calculateHashValue(std::string hash)
+int CoinCoinMiner::calculateHashValue(std::string &&hash)
 {
     int counter = 0;
     for (char c : hash)
@@ -206,22 +215,27 @@ class BenchmarkMiner : public Miner
 {
 public:
     void coinHash();
-    std::string displayReadableDuration(const long duration);
+    std::string displayReadableDuration(const long &duration);
 };
 
 void BenchmarkMiner::coinHash()
 {
     bool isRunning = true;
+    const auto asciiCharset = charset();
+    std::default_random_engine randomGenerator(std::random_device{}());
+    std::uniform_int_distribution<> distribution(0, asciiCharset.size() - 1);
+    auto randomcharacter = [asciiCharset, &distribution, &randomGenerator]() { return asciiCharset[distribution(randomGenerator)]; };
     auto startTime = std::chrono::high_resolution_clock::now();
     std::cout << "Starting benchmark..." << std::endl;
     while (isRunning)
     {
-        token->setNonce(getRandomNonce<std::string>());
+        token->setNonce(getRandomNonce<std::string>(randomcharacter));
         if (isHashValid(sha1()))
         {
-            std::cout << "miette (5) calculée => " << token->getToken() << " => " << sha1() << std::endl;
             auto stopTime = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stopTime - startTime);
+            std::cout << "miette (5) calculée => " << token->getToken() << " => " << sha1() << std::endl;
+            std::cout << "------------------------------------" << std::endl;
             std::cout << "miette (5) => " << displayReadableDuration(duration.count()) << std::endl;
             std::cout << "subcoin (6) => " << displayReadableDuration(duration.count() * 16) << std::endl;
             std::cout << "coin (7) => " << displayReadableDuration(duration.count() * pow(16, 2)) << std::endl;
@@ -236,7 +250,7 @@ void BenchmarkMiner::coinHash()
     delete token;
 }
 
-std::string BenchmarkMiner::displayReadableDuration(const long duration)
+std::string BenchmarkMiner::displayReadableDuration(const long &duration)
 {
     auto days = duration / (24 * 60 * 60 * 1000);
     auto rest = duration % (24 * 60 * 60 * 1000);
@@ -254,12 +268,10 @@ std::string BenchmarkMiner::displayReadableDuration(const long duration)
 int main(const int argc, char const *argv[])
 {
     ParamParser parameterParser(std::vector<std::string>(argv, argv + argc), argc);
-    std::srand((unsigned)std::time(0));
-    //const auto processor_count = std::thread::hardware_concurrency();
 
-    Miner *miner;
     try
     {
+        Miner *miner;
         MinerEnum mode = parameterParser.isCommandValid();
         switch (mode)
         {
@@ -273,7 +285,7 @@ int main(const int argc, char const *argv[])
         default:
             miner = nullptr;
             throw std::invalid_argument("invalid command");
-            return 0;
+            return 1;
         }
 
         if (miner != nullptr)
@@ -284,10 +296,12 @@ int main(const int argc, char const *argv[])
     catch (const std::invalid_argument &e)
     {
         std::cerr << e.what() << std::endl;
+        return 1;
     }
     catch (const std::exception &e)
     {
         std::cerr << "fatal error : " << e.what() << std::endl;
+        return 1;
     }
 
     return 0;
