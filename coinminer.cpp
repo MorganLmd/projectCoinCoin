@@ -189,26 +189,9 @@ void CoinCoinMiner::coinHash()
         token->setNonce(getRandomNonce<std::string>(randomcharacter));
         if (isHashValid(sha1()))
         {
-            std::cout << token->getToken() << " => " << calculateHashValue(sha1()) << std::endl;
+            std::cout << token->getToken() << std::endl;
         }
     }
-}
-
-int CoinCoinMiner::calculateHashValue(std::string &&hash)
-{
-    int counter = 0;
-    for (char c : hash)
-    {
-        if (c == 'c')
-        {
-            counter++;
-        }
-        else
-        {
-            break;
-        }
-    }
-    return counter;
 }
 
 class BenchmarkMiner : public Miner
